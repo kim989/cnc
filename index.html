@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CNC 수직선반 5G 스마트 모니터링 & 공구마모 시스템 v3.0</title>
+  <meta name="description" content="5G 기반 FANUC CNC 실시간 모니터링, Machining Phase 추적 및 Multi-Sensor 공구 마모/가공 품질 분석 태블릿 HMI">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,700&family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;0,800;1,700&family=Rajdhani:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/hmi-theme.css">
+</head>
+<body class="hmi-dark-mode">
+  <div id="hmi-root" class="hmi-container">
+    
+    <!-- 1. 최상단 헤더 바 (TOP HEADER) -->
+    <header class="hmi-header">
+      <div class="header-left">
+        <div class="brand-badge">
+          <span class="brand-icon">⚙️</span>
+          <div class="brand-text">
+            <h1 class="brand-title">CNC 스마트 모니터링 시스템</h1>
+            <span class="brand-sub">FANUC 31i-B5 • 5G 엣지 게이트웨이 v3.0</span>
+          </div>
+        </div>
+        <div class="machine-tag">
+          <span class="tag-label">장비 ID</span>
+          <span class="tag-val" id="val-machine-id">VTL-01</span>
+        </div>
+        <div class="status-indicator-box">
+          <div class="main-status-badge status-cutting" id="badge-machine-status">
+            <span class="status-dot"></span>
+            <span class="status-text" id="val-machine-status">가공 중 (CUTTING)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5G 통신 및 텔레메트리 상태 -->
+      <div class="header-center">
+        <div class="telemetry-item">
+          <span class="tel-icon connected" id="icon-5g-status">📶</span>
+          <div class="tel-info">
+            <span class="tel-label">5G 네트워크</span>
+            <span class="tel-val status-ok" id="val-5g-network">정상 연결</span>
+          </div>
+        </div>
+        <div class="telemetry-item">
+          <span class="tel-icon receiving" id="icon-cnc-status">📡</span>
+          <div class="tel-info">
+            <span class="tel-label">CNC 데이터</span>
+            <span class="tel-val status-ok" id="val-cnc-status">실시간 수신 중</span>
+          </div>
+        </div>
+        <div class="telemetry-item">
+          <span class="tel-icon">⏱️</span>
+          <div class="tel-info">
+            <span class="tel-label">수신 지연시간</span>
+            <span class="tel-val" id="val-latency">0.82 초</span>
+          </div>
+        </div>
+        <div class="telemetry-item">
+          <span class="tel-icon">🏷️</span>
+          <div class="tel-info">
+            <span class="tel-label">데이터 출처</span>
+            <span class="tel-val text-cyan" id="val-data-source">● 5G 시뮬레이션</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 시뮬레이션 재생 속도 및 제어 버튼 -->
+      <div class="header-right">
+        <div class="sim-speed-selector">
+          <span class="sim-speed-label">재생 배속</span>
+          <button class="speed-btn" data-speed="1">1X</button>
+          <button class="speed-btn" data-speed="5">5X</button>
+          <button class="speed-btn active" data-speed="10">10X</button>
+          <button class="speed-btn" data-speed="50">50X</button>
+        </div>
+
+        <div class="sim-ctrl-box">
+          <button class="ctrl-btn sim-toggle" id="btn-sim-toggle" title="시뮬레이션 재생 / 일시정지">
+            <span id="sim-icon">▶️</span>
+          </button>
+          <button class="ctrl-btn" id="btn-sim-reset" title="처음부터 다시 재생">
+            <span>🔄</span>
+          </button>
+          <button class="ctrl-btn alarm-trigger" id="btn-trigger-alarm" title="긴급 알람 팝업 및 경고음 테스트">
+            <span>🚨 이상 감지 테스트</span>
+          </button>
+        </div>
+
+        <div class="dataset-counter-badge">
+          <span class="cnt-lbl">데이터 위치</span>
+          <span class="cnt-val" id="val-sim-row">356 / 900</span>
+        </div>
+
+        <div class="system-clock">
+          <span id="hmi-clock-time">21:55:00</span>
+          <span id="hmi-clock-date">2026-08-08</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 알람 발생 시 상단 점멸 배너 (ALARM BANNER) -->
+    <div class="hmi-alarm-banner hidden" id="hmi-alarm-banner">
+      <div class="alarm-content">
+        <span class="alarm-flasher">🚨</span>
+        <span class="alarm-title">!!! CNC 경보(ALARM) 감지됨 !!!</span>
+        <span class="alarm-code-badge" id="banner-alarm-code">SV040</span>
+        <span class="alarm-msg" id="banner-alarm-msg">X축 서보 유효전류 과부하 (OVERLOAD)</span>
+        <span class="alarm-time" id="banner-alarm-time">21:40:10</span>
+      </div>
+      <button class="alarm-dismiss-btn" id="btn-alarm-dismiss">경보 확인 / 해제</button>
+    </div>
+
+    <!-- 2. 메인 대시보드 워크스페이스 영역 -->
+    <main class="hmi-main-body" id="hmi-main-body">
+
+      <!-- ====================================================================
+           뷰 1: 오퍼레이터 메인 대시보드 (1920x1200 최적화 레이아웃)
+           ==================================================================== -->
+      <section class="hmi-view-tab active" id="view-main">
+        <div class="dashboard-grid-1920-v3">
+          
+          <!-- 상단 3열 그리드 (좌 28%, 중 44%, 우 28%) -->
+          <div class="top-3col-grid">
+            
+            <!-- [좌측 열 (28%)]: 5축 좌표계 & 프로그램/피드 -->
+            <div class="hmi-card col-left">
+              <div class="card-header">
+                <span class="card-title">축 위치 좌표 (AXIS POSITION)</span>
+                <span class="card-sub-tag">5축 매핑 완료</span>
+              </div>
+              
+              <div class="position-display-matrix">
+                <div class="pos-group">
+                  <div class="pos-group-title">절대 좌표계 (ABSOLUTE POSITION)</div>
+                  <div class="pos-row" id="row-pos-abs-x">
+                    <span class="axis-badge axis-x">X</span>
+                    <span class="axis-value" id="val-abs-x">110.880</span>
+                    <span class="axis-unit">mm</span>
+                  </div>
+                  <div class="pos-row" id="row-pos-abs-z">
+                    <span class="axis-badge axis-z">Z</span>
+                    <span class="axis-value" id="val-abs-z">-71.884</span>
+                    <span class="axis-unit">mm</span>
+                  </div>
+                </div>
+
+                <div class="pos-sub-grid">
+                  <div class="pos-group compact">
+                    <div class="pos-group-title">상대 좌표 (RELATIVE)</div>
+                    <div class="pos-compact-row">
+                      <span class="compact-axis">U</span>
+                      <span class="compact-val" id="val-rel-u">110.880</span>
+                    </div>
+                    <div class="pos-compact-row">
+                      <span class="compact-axis">W</span>
+                      <span class="compact-val" id="val-rel-w">-71.884</span>
+                    </div>
+                  </div>
+                  <div class="pos-group compact">
+                    <div class="pos-group-title">잔여 이동량 (DISTANCE TO GO)</div>
+                    <div class="pos-compact-row">
+                      <span class="compact-axis text-cyan">X</span>
+                      <span class="compact-val text-cyan" id="val-dtg-x">0.000</span>
+                    </div>
+                    <div class="pos-compact-row">
+                      <span class="compact-axis text-cyan">Z</span>
+                      <span class="compact-val text-cyan" id="val-dtg-z">-13.228</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- NC 프로그램 및 절삭 피드율 -->
+              <div class="card-header mt-card">
+                <span class="card-title">프로그램 및 이송 속도 (FEED)</span>
+                <span class="badge-accent" id="val-nc-main">메인: O3303</span>
+              </div>
+
+              <div class="prog-info-strip">
+                <div class="prog-chip">
+                  <span class="p-lbl">NC 프로그램</span>
+                  <span class="p-val highlight" id="val-nc-prog">O3303</span>
+                </div>
+                <div class="prog-chip">
+                  <span class="p-lbl">실행 G코드</span>
+                  <span class="p-val gcode" id="val-current-gcode">G01</span>
+                </div>
+                <div class="prog-chip">
+                  <span class="p-lbl">현재 이송속도</span>
+                  <span class="p-val" id="val-feed-rate">0.25 mm/rev</span>
+                </div>
+                <div class="prog-chip">
+                  <span class="p-lbl">오버라이드</span>
+                  <span class="p-val text-green" id="val-feed-override">100%</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- [중앙 열 (44% - 핵심)]: 가공 공정 단계 & 서보 유효전류 텔레메트리 -->
+            <div class="hmi-card col-center">
+              <div class="card-header">
+                <div class="header-with-status">
+                  <span class="card-title">가공 공정 및 서보 텔레메트리</span>
+                  <span class="badge-live">● 실시간 공정 집중 모드</span>
+                </div>
+                <span class="card-sub-tag">5G 핵심 원천 데이터</span>
+              </div>
+
+              <!-- 현재 공정 단계 대형 히어로 배너 -->
+              <div class="phase-hero-box">
+                <div class="phase-meta-row">
+                  <div>
+                    <span class="hero-lbl">현재 가공 공정 단계 (MACHINING PHASE)</span>
+                    <h2 class="hero-phase-title" id="val-current-phase-title">외경/단면 황삭 (ROUGH TURNING)</h2>
+                  </div>
+                  <div class="phase-pct-badge">
+                    <span class="pct-num" id="val-phase-progress-pct">68%</span>
+                    <span class="pct-lbl">공정 진행률</span>
+                  </div>
+                </div>
+
+                <div class="phase-progress-track">
+                  <div class="phase-progress-fill" id="bar-phase-progress" style="width: 68%;"></div>
+                </div>
+
+                <!-- 공정별 동적 임계값 (Phase-Aware Threshold) 상태 -->
+                <div class="phase-threshold-strip">
+                  <span>공정 정상 부하 기준: <b id="val-phase-norm-load">60~85%</b></span>
+                  <span>현재 부하 판정: <b class="text-green" id="val-phase-load-state">정상 범위 (84.5%)</b></span>
+                </div>
+              </div>
+
+              <!-- 사이클 타임 및 진행률 스트립 -->
+              <div class="cycle-progress-strip mt-card">
+                <div class="cycle-item">
+                  <span class="c-lbl">현재 사이클 시간</span>
+                  <span class="c-val text-green" id="val-cycle-time">00:18:40</span>
+                </div>
+                <div class="cycle-item">
+                  <span class="c-lbl">총 기준 사이클</span>
+                  <span class="c-val" id="val-cycle-total">00:29:50 (1,790초)</span>
+                </div>
+                <div class="cycle-item">
+                  <span class="c-lbl">전체 제품 가공률</span>
+                  <span class="c-val highlight-cyan" id="val-cycle-pct">62%</span>
+                </div>
+              </div>
+
+              <!-- 서보 유효전류 원천값 (부호 보존 및 통계) 듀얼 미터 -->
+              <div class="servo-realtime-grid-compact mt-card">
+                <div class="servo-meter-card">
+                  <div class="sm-head">
+                    <span class="axis-badge axis-x">X축</span>
+                    <span class="sm-title">반경 방향(절삭) 서보 유효전류 (원천값)</span>
+                  </div>
+                  <div class="sm-value-row">
+                    <span class="big-current text-cyan" id="val-servo-curr-x">-25.0 A</span>
+                    <div class="sm-stats">
+                      <span>이동평균(MA): <b id="val-curr-ma-x">24.2</b>A</span>
+                      <span>피크(PK): <b id="val-curr-pk-x">29.1</b>A</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="servo-meter-card">
+                  <div class="sm-head">
+                    <span class="axis-badge axis-z">Z축</span>
+                    <span class="sm-title">축 방향(이송) 서보 유효전류 (원천값)</span>
+                  </div>
+                  <div class="sm-value-row">
+                    <span class="big-current text-cyan" id="val-servo-curr-z">2.0 A</span>
+                    <div class="sm-stats">
+                      <span>이동평균(MA): <b id="val-curr-ma-z">2.1</b>A</span>
+                      <span>피크(PK): <b id="val-curr-pk-z">4.5</b>A</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- [우측 열 (28%)]: 주축(스핀들) & 생산량 모니터 -->
+            <div class="hmi-card col-right">
+              <div class="card-header">
+                <span class="card-title">주축(스핀들) 및 생산 현황</span>
+                <span class="card-sub-tag">다이렉트 드라이브</span>
+              </div>
+
+              <!-- 스핀들 RPM 및 부하율 게이지 -->
+              <div class="spindle-monitor-panel">
+                <div class="spindle-meters-row">
+                  <div class="spindle-gauge-box">
+                    <span class="sp-lbl">주축 회전수 (RPM)</span>
+                    <div class="sp-big-rpm">
+                      <span id="val-spindle-rpm">399</span>
+                      <span class="sp-unit">RPM</span>
+                    </div>
+                    <div class="sp-bar-bg">
+                      <div class="sp-bar-fill fill-rpm" id="bar-spindle-rpm" style="width: 26%;"></div>
+                    </div>
+                  </div>
+
+                  <div class="spindle-gauge-box">
+                    <span class="sp-lbl">현재 주축 부하율</span>
+                    <div class="sp-big-rpm">
+                      <span id="val-spindle-load">84.5</span>
+                      <span class="sp-unit">%</span>
+                    </div>
+                    <div class="sp-bar-bg">
+                      <div class="sp-bar-fill fill-load" id="bar-spindle-load" style="width: 84.5%;"></div>
+                    </div>
+                    <span class="sp-target">최고 피크: <b id="val-spindle-peak">86.96%</b></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 생산량 카운터 및 누적 가동 시간 -->
+              <div class="part-counter-block mt-card">
+                <div class="part-numbers-row">
+                  <div class="part-stat">
+                    <span class="p-title">가공 완료 수량</span>
+                    <span class="p-count highlight-green" id="val-part-count">5 <small>개 (PCS)</small></span>
+                  </div>
+                  <div class="part-stat right">
+                    <span class="p-title">목표 수량</span>
+                    <span class="p-count text-muted" id="val-part-target">1,000 <small>개</small></span>
+                  </div>
+                </div>
+                
+                <div class="time-accum-strip mt-10">
+                  <div class="time-item">
+                    <span class="t-lbl">전원 투입 시간</span>
+                    <span class="t-val" id="val-time-poweron">463,536 시간</span>
+                  </div>
+                  <div class="time-item">
+                    <span class="t-lbl">장비 가동 시간</span>
+                    <span class="t-val" id="val-time-operating">2,508:08:58</span>
+                  </div>
+                  <div class="time-item">
+                    <span class="t-lbl">순수 절삭 시간</span>
+                    <span class="t-val text-green" id="val-time-cutting">1,394:46:41</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- 하단 3분할 카드: 센서(진동/온도), 공구마모(실측 vs 예측), 품질(외경) -->
+          <div class="bottom-3split-grid">
+            
+            <!-- [하단 좌측 (28%)]: 진동 및 절삭공구 온도 -->
+            <div class="hmi-card bottom-card">
+              <div class="card-header">
+                <span class="card-title">진동 및 절삭공구 온도</span>
+                <span class="badge-accent">실시간 센서 융합</span>
+              </div>
+              <div class="dual-sensor-row">
+                <div class="sensor-chip">
+                  <span class="sens-lbl">진동 실효값 (VIBRATION RMS)</span>
+                  <div class="sens-val-row">
+                    <span class="sens-num highlight-cyan" id="val-vibration-rms">1.52</span>
+                    <span class="sens-unit">g</span>
+                  </div>
+                  <span class="sens-sub">최고 피크: <b id="val-vibration-peak">2.78 g</b></span>
+                </div>
+                <div class="sensor-chip">
+                  <span class="sens-lbl">공구 팁 온도 (TOOL TEMP)</span>
+                  <div class="sens-val-row">
+                    <span class="sens-num text-warn" id="val-tool-temp">155.3</span>
+                    <span class="sens-unit">℃</span>
+                  </div>
+                  <span class="sens-sub">최고 피크: <b id="val-temp-peak">185.6 ℃</b></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- [하단 중앙 (44%)]: 절삭공구 마모도 (실측 기준 vs AI 융합 예측) -->
+            <div class="hmi-card bottom-card highlight-border">
+              <div class="card-header">
+                <div class="tool-id-strip">
+                  <span class="tw-icon">🔪</span>
+                  <span class="card-title" id="val-active-tool">장착 공구: INSERT-T1-0001</span>
+                </div>
+                <div class="tw-status-pill status-warn" id="badge-tool-status">
+                  <span id="val-tool-condition-text">마모 주의 (WARNING)</span>
+                </div>
+              </div>
+
+              <div class="wear-dual-stats-grid">
+                <!-- 실측 기준값 (Ground Truth) -->
+                <div class="wear-stat-box">
+                  <span class="ws-lbl">플랭크 마모도 (실측 기준치)</span>
+                  <span class="ws-val" id="val-wear-ref">0.056 <small>mm</small></span>
+                  <span class="ws-badge ref">● 실측 기준 (REF)</span>
+                </div>
+                <!-- AI 멀티센서 융합 예측 지수 -->
+                <div class="wear-stat-box">
+                  <span class="ws-lbl">공구 마모 지수 (AI 예측)</span>
+                  <span class="ws-val text-warn" id="val-wear-index">82 %</span>
+                  <span class="ws-badge pred">● AI 융합 예측 (PRED)</span>
+                </div>
+                <!-- 모델 정확도 및 이상징후 플래그 -->
+                <div class="wear-stat-box">
+                  <span class="ws-lbl">AI 모델 예측 정확도</span>
+                  <span class="ws-val highlight-green" id="val-model-accuracy">97.3 %</span>
+                  <span class="ws-sub text-muted" id="val-anomaly-flag">이상 감지: 정상</span>
+                </div>
+              </div>
+
+              <!-- 실시간 미니 파형 캔버스 -->
+              <div class="tw-mini-canvas-wrap">
+                <canvas id="mini-trend-canvas" class="trend-canvas" width="620" height="60"></canvas>
+              </div>
+            </div>
+
+            <!-- [하단 우측 (28%)]: 제품 정보 및 가공 외경 품질 치수 -->
+            <div class="hmi-card bottom-card">
+              <div class="card-header">
+                <span class="card-title">제품 정보 및 가공 외경 품질</span>
+                <span class="card-sub-tag">로트: 20250602</span>
+              </div>
+
+              <div class="product-quality-grid">
+                <div class="pq-item">
+                  <span class="pq-lbl">가공 제품 식별번호</span>
+                  <span class="pq-val" id="val-product-id">SHELL-20250602-01</span>
+                </div>
+                <div class="pq-item">
+                  <span class="pq-lbl">현재 가공 순번</span>
+                  <span class="pq-val text-cyan" id="val-part-seq">5개 중 1번째 제품</span>
+                </div>
+                <div class="pq-item quality-highlight">
+                  <span class="pq-lbl">가공 외경 치수 (치수 품질)</span>
+                  <div class="dia-val-row">
+                    <span class="dia-val" id="val-outer-dia">153.804</span>
+                    <span class="dia-unit">mm</span>
+                  </div>
+                  <span class="dia-dev text-warn" id="val-dia-dev">기준 편차: +0.004 mm</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           뷰 2: 7대 실시간 트렌드 그래프 뷰 (TRENDS VIEW)
+           ==================================================================== -->
+      <section class="hmi-view-tab" id="view-trends">
+        <div class="tab-view-container">
+          <div class="view-header-row">
+            <div>
+              <h2 class="view-title">7대 실시간 텔레메트리 & 품질 트렌드 분석</h2>
+              <p class="view-desc">주축 부하, 진동, 공구 온도, 서보 유효전류, 공구 마모 지수, 외경 치수, 사이클 타임 실시간 추이</p>
+            </div>
+          </div>
+
+          <div class="charts-7-grid">
+            <div class="chart-box">
+              <span class="cb-title">그래프 1: 주축 부하율 (%) 시간별 추이</span>
+              <canvas id="chart-spindle-load" class="trend-canvas" width="380" height="120"></canvas>
+            </div>
+            <div class="chart-box">
+              <span class="cb-title">그래프 2: 진동 실효값 (Vibration g) 시간별 추이</span>
+              <canvas id="chart-vibration" class="trend-canvas" width="380" height="120"></canvas>
+            </div>
+            <div class="chart-box">
+              <span class="cb-title">그래프 3: 절삭공구 팁 온도 (℃) 시간별 추이</span>
+              <canvas id="chart-tool-temp" class="trend-canvas" width="380" height="120"></canvas>
+            </div>
+            <div class="chart-box">
+              <span class="cb-title">그래프 4: 서보 유효전류 (A) 시간별 추이</span>
+              <canvas id="chart-servo-current" class="trend-canvas" width="380" height="120"></canvas>
+            </div>
+            <div class="chart-box">
+              <span class="cb-title">그래프 5: 공구 마모 지수 (%) 제품별 증가 추이</span>
+              <canvas id="chart-tool-wear" class="trend-canvas" width="380" height="120"></canvas>
+            </div>
+            <div class="chart-box">
+              <span class="cb-title">그래프 6: 가공 외경 치수 (mm) 제품별 치수 변화</span>
+              <canvas id="chart-outer-dia" class="trend-canvas" width="380" height="120"></canvas>
+            </div>
+            <div class="chart-box full-span">
+              <span class="cb-title">그래프 7: 제품별 사이클 시간 (초) 안정성 분석</span>
+              <canvas id="chart-cycle-time" class="trend-canvas" width="800" height="120"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           뷰 3: 제품 5단계 공정 상세 뷰 (PRODUCT DETAIL)
+           ==================================================================== -->
+      <section class="hmi-view-tab" id="view-product-detail">
+        <div class="tab-view-container">
+          <div class="view-header-row">
+            <div>
+              <h2 class="view-title">제품 5단계 공정 상세 텔레메트리</h2>
+              <p class="view-desc">제품 1개(1,790초) 가공 사이클 동안 각 공정 단계별 기준 부하, 진동, 공구 온도</p>
+            </div>
+          </div>
+
+          <div class="hmi-card">
+            <table class="hmi-table">
+              <thead>
+                <tr>
+                  <th>공정 코드</th>
+                  <th>공정 단계명</th>
+                  <th>소요 시간 구간</th>
+                  <th>평균 주축 부하율</th>
+                  <th>평균 진동값</th>
+                  <th>평균 공구 온도</th>
+                  <th>진행 상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>PHASE 1</td><td>1_LOADING (공작물 장착/클램프)</td><td>0 ~ 170 초</td><td>5 %</td><td>0.05 g</td><td>25 ℃</td><td><span class="pill pill-good">완료</span></td></tr>
+                <tr><td>PHASE 2</td><td>2_ROUGH_TURNING (외경/단면 황삭)</td><td>180 ~ 710 초</td><td>81 %</td><td>2.31 g</td><td>178 ℃</td><td><span class="pill pill-good">가공 중</span></td></tr>
+                <tr><td>PHASE 3</td><td>3_FINISH_TURNING (외경 정삭 가공)</td><td>720 ~ 1310 초</td><td>44 %</td><td>1.10 g</td><td>120 ℃</td><td><span class="pill pill-good">대기</span></td></tr>
+                <tr><td>PHASE 4</td><td>4_THREADING (나사 정밀 가공)</td><td>1320 ~ 1670 초</td><td>63 %</td><td>1.50 g</td><td>145 ℃</td><td><span class="pill pill-good">대기</span></td></tr>
+                <tr><td>PHASE 5</td><td>5_UNLOADING (언로딩/반출)</td><td>1680 ~ 1790 초</td><td>3 %</td><td>0.04 g</td><td>30 ℃</td><td><span class="pill pill-good">대기</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           뷰 4: 공구 상세 & 품질 상관관계 뷰 (TOOL & QUALITY)
+           ==================================================================== -->
+      <section class="hmi-view-tab" id="view-tool-detail">
+        <div class="tab-view-container">
+          <div class="view-header-row">
+            <div>
+              <h2 class="view-title">절삭공구 상세 및 품질 상관관계 분석</h2>
+              <p class="view-desc">공구 마모 진행 $\rightarrow$ 절삭 저항 상승 $\rightarrow$ 진동/온도 증가 $\rightarrow$ 외경 치수 변화 연쇄 분석</p>
+            </div>
+          </div>
+
+          <div class="wear-deep-grid">
+            <div class="hmi-card">
+              <span class="card-title">절삭공구 사양 및 잔여 수명 예측</span>
+              <table class="hmi-table mt-10">
+                <tbody>
+                  <tr><td>공구 식별번호</td><td><b>INSERT-T1-0001</b></td></tr>
+                  <tr><td>인서트 규격</td><td>CNMG120408 황삭/정삭 겸용 인서트</td></tr>
+                  <tr><td>현재 플랭크 마모도 (실측치)</td><td class="text-warn"><b>0.056 mm</b></td></tr>
+                  <tr><td>공구 마모 지수 (AI 예측)</td><td class="text-warn"><b>82 %</b></td></tr>
+                  <tr><td>현재 가공 완료 수량</td><td>5 개 (PCS)</td></tr>
+                  <tr><td>최고 주축 부하율</td><td>86.96 %</td></tr>
+                  <tr><td>최고 절삭 진동값</td><td>2.78 g</td></tr>
+                  <tr><td>최고 공구 팁 온도</td><td>185.6 ℃</td></tr>
+                  <tr><td>추정 잔여 가공 수량</td><td class="highlight-green"><b>약 3~4개 가공 가능</b></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="hmi-card">
+              <span class="card-title">품질 상관관계: 공구 마모 vs 가공 외경 치수</span>
+              <div class="wear-recommendation-box mt-10">
+                <span class="rec-title">가공 품질 진단 및 오퍼레이터 권장 조치</span>
+                <p class="rec-text">
+                  공구 마모 진행에 따라 절삭 저항이 상승하여 진동(1.52g)과 공구 온도(155.3℃)가 동반 상승하고 있습니다. 이에 따라 가공 외경 치수가 초기 <b>153.794mm</b>에서 <b>153.804mm (+0.010mm 편차)</b>로 안정적으로 유지되고 있습니다. 관리 공차선(±0.060mm) 내에 있으므로 정상 가공을 계속 진행하십시오.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           뷰 5: 15채널 알람 매트릭스 뷰 (ALARM VIEW)
+           ==================================================================== -->
+      <section class="hmi-view-tab" id="view-alarm">
+        <div class="tab-view-container">
+          <div class="view-header-row">
+            <div>
+              <h2 class="view-title">CNC 15채널 알람 매트릭스 (Alarm Short 0 ~ 14)</h2>
+              <p class="view-desc">5G 통신망을 통한 FANUC 15개 알람 채널 실시간 감시 및 로그</p>
+            </div>
+          </div>
+          <div class="alarm-channel-matrix mt-10" id="alarm-channels-grid"></div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           뷰 6: 가공 이력 뷰 (HISTORY VIEW)
+           ==================================================================== -->
+      <section class="hmi-view-tab" id="view-history">
+        <div class="tab-view-container">
+          <div class="view-header-row">
+            <div>
+              <h2 class="view-title">제품별 가공 이력 데이터베이스</h2>
+              <p class="view-desc">가공 완료된 5개 제품의 사이클 시간, 최고 부하, 진동, 플랭크 마모, 외경 치수 기록</p>
+            </div>
+          </div>
+          <div class="hmi-card">
+            <table class="hmi-table">
+              <thead>
+                <tr>
+                  <th>순번</th>
+                  <th>제품 식별번호 (ID)</th>
+                  <th>사이클 시간</th>
+                  <th>최고 주축 부하</th>
+                  <th>최고 진동값</th>
+                  <th>최고 공구 온도</th>
+                  <th>플랭크 마모도</th>
+                  <th>가공 외경 치수</th>
+                  <th>품질 판정</th>
+                </tr>
+              </thead>
+              <tbody id="table-part-history">
+                <tr><td>1</td><td>SHELL-20250602-01</td><td>1790초</td><td>81.2%</td><td>1.95g</td><td>145℃</td><td>0.040mm</td><td>153.794mm</td><td><span class="pill pill-good">합격 (PASS)</span></td></tr>
+                <tr><td>2</td><td>SHELL-20250602-02</td><td>1785초</td><td>83.0%</td><td>2.10g</td><td>158℃</td><td>0.068mm</td><td>153.811mm</td><td><span class="pill pill-good">합격 (PASS)</span></td></tr>
+                <tr><td>3</td><td>SHELL-20250602-03</td><td>1792초</td><td>84.1%</td><td>2.25g</td><td>166℃</td><td>0.095mm</td><td>153.810mm</td><td><span class="pill pill-good">합격 (PASS)</span></td></tr>
+                <tr><td>4</td><td>SHELL-20250602-04</td><td>1788초</td><td>85.4%</td><td>2.45g</td><td>172℃</td><td>0.123mm</td><td>153.825mm</td><td><span class="pill pill-good">합격 (PASS)</span></td></tr>
+                <tr><td>5</td><td>SHELL-20250602-05</td><td>1790초</td><td>86.9%</td><td>2.78g</td><td>185℃</td><td>0.150mm</td><td>153.844mm</td><td><span class="pill pill-good">합격 (PASS)</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           뷰 7: 시스템 설정 뷰 (SETTING VIEW)
+           ==================================================================== -->
+      <section class="hmi-view-tab" id="view-setting">
+        <div class="tab-view-container">
+          <div class="view-header-row">
+            <div>
+              <h2 class="view-title">시스템 설정 및 공정별 임계값 구성</h2>
+              <p class="view-desc">공정별 Phase-Aware 주축 부하 상한선 및 5G 게이트웨이 파라미터 설정</p>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <div class="hmi-card">
+              <span class="card-title">공정 단계별 정상 부하 상한선 설정 (%)</span>
+              <div class="settings-form-grid mt-10">
+                <div class="form-group"><label>황삭(Rough Turning) 정상 상한선 (%)</label><input type="number" class="hmi-input" value="85"></div>
+                <div class="form-group"><label>황삭(Rough Turning) 경보 임계값 (%)</label><input type="number" class="hmi-input" value="90"></div>
+                <div class="form-group"><label>정삭(Finish Turning) 정상 상한선 (%)</label><input type="number" class="hmi-input" value="55"></div>
+                <div class="form-group"><label>나사가공(Threading) 정상 상한선 (%)</label><input type="number" class="hmi-input" value="70"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ====================================================================
+         긴급 바이트 마모 경고 모달 팝업 창 (알림창.md 사양 100% 반영)
+         ==================================================================== -->
+    <div class="emergency-modal-overlay hidden" id="emergency-alarm-modal">
+      <div class="emergency-modal-card">
+        <div class="modal-siren-box">
+          <span class="modal-siren-icon">🚨</span>
+        </div>
+        <div class="modal-alarm-badge" id="modal-alarm-code">SV040</div>
+        <h2 class="modal-alarm-title" id="modal-alarm-title">⚠️ 긴급 바이트 마모 경고</h2>
+        <p class="modal-alarm-msg" id="modal-alarm-msg">
+          바이트(공구) 마모 한계 초과 감지!<br>
+          이송 속도를 낮추고 공구 팁을 교체하십시오.
+        </p>
+        <button class="modal-btn-off" id="btn-alarm-modal-off">
+          OFF (경고 끄기)
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. 하단 독 네비게이션 바 (BOTTOM DOCK NAVIGATION) -->
+    <nav class="hmi-bottom-nav">
+      <div class="nav-buttons-container">
+        <button class="nav-item active" data-target="view-main">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">메인 대시보드</span>
+        </button>
+        <button class="nav-item" data-target="view-trends">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">7대 실시간 트렌드</span>
+        </button>
+        <button class="nav-item" data-target="view-product-detail">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">제품 공정 상세</span>
+        </button>
+        <button class="nav-item" data-target="view-tool-detail">
+          <span class="nav-icon">🔪</span>
+          <span class="nav-label">공구/품질 상관분석</span>
+        </button>
+        <button class="nav-item" data-target="view-alarm">
+          <span class="nav-icon">🚨</span>
+          <span class="nav-label">15채널 알람</span>
+        </button>
+        <button class="nav-item" data-target="view-history">
+          <span class="nav-icon">📜</span>
+          <span class="nav-label">가공 이력</span>
+        </button>
+        <button class="nav-item" data-target="view-setting">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">시스템 설정</span>
+        </button>
+      </div>
+
+      <div class="dock-status-summary">
+        <div class="dock-item">
+          <span class="dock-lbl">운전 모드:</span>
+          <span class="dock-val text-green" id="dock-sim-mode">5G 멀티센서 시뮬레이션 모드</span>
+        </div>
+        <div class="dock-item">
+          <span class="dock-lbl">현재 가공 로트:</span>
+          <span class="dock-val" id="dock-lot-id">LOT-20250602-01</span>
+        </div>
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- 스크립트 모듈 로드 -->
+  <script src="js/cnc-schema.js"></script>
+  <script src="js/alarm-sound-manager.js"></script>
+  <script src="js/tool-wear-engine.js"></script>
+  <script src="js/cnc-simulator.js"></script>
+  <script src="js/hmi-charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
